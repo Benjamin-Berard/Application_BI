@@ -4,8 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
-import warnings
-warnings.filterwarnings('ignore')
+#graph de distribution pour chaque vairable et etudier chaque pair de variable avec graphique de correlation
 
 
 
@@ -47,9 +46,13 @@ print(f"Valeurs manquantes: {df['sex'].isnull().sum()}")
 print("\n Attribut: age ")
 print(df['age'].describe())
 print(f"Valeurs manquantes: {df['age'].isnull().sum()}")
-print(f"Valeurs négatives: {(df['age'] < 0).sum()}")
-print(f"Valeurs > 100: {(df['age'] > 100).sum()}")
+print(f"Age < 18: {(df['age'] < 18).sum()}")
+print(f"Age > 100: {(df['age'] > 100).sum()}")
 
+
+print(f"\nvaleur de goal < 0: {(df['goal'] < 0).sum()}")
+print(f"\nvaleur de pledged < 0: {(df['pledged'] < 0).sum()}")
+print(f"\nvaleur de backers < 0: {(df['backers'] < 0).sum()}")
 print("\n Attribut: currency ")
 print(df['currency'].value_counts().head(10))
 
@@ -59,24 +62,19 @@ print(f"Pledged - Min: {df['pledged'].min()}, Max: {df['pledged'].max()}, Média
 print(f"Goal = 0: {(df['goal'] == 0).sum()}")
 print(f"Pledged = 0: {(df['pledged'] == 0).sum()}")
 
-# Backers
+
 print("\n Attribut: backers ")
 print(df['backers'].describe())
 print(f"Backers = 0: {(df['backers'] == 0).sum()}")
 print(f"Valeurs manquantes: {df['backers'].isnull().sum()}")
 
-# Dates
 print("\n Attributs: start_date et end_date ")
 print(f"Type de start_date: {df['start_date'].dtype}")
 print(f"Type de end_date: {df['end_date'].dtype}")
 print(f"Dates manquantes: {(df['start_date'].isnull() | df['end_date'].isnull()).sum()}")
 
-# ============================================================================
-# 2.4 DÉTECTION DES PROBLÈMES
-# ============================================================================
-print("\n" + "="*80)
-print("[2.4] DÉTECTION DES PROBLÈMES")
-print("="*80)
+
+print("DÉTECTION DES PROBLÈMES")
 
 
 colonnes_avec_manquantes = valeurs_manquantes[valeurs_manquantes > 0]
@@ -93,14 +91,7 @@ if (df['goal'] == 0).sum() > 0:
 if df['start_date'].dtype == 'object':
     print("Dates au format texte,on doit convertir en datetime")
 
-
-print("\nProblèmes identifiés:")
-
-
-# ============================================================================
-# 2.5 NETTOYAGE DES DONNÉES
-# ============================================================================
-
+ 
 print("NETTOYAGE DES DONNÉES")
 
 df_clean = df.copy()
@@ -114,7 +105,8 @@ df_clean = df_clean.drop(['id', 'name'], axis=1)
 print("\n Filtrage des états pertinents")
 print(f"  États avant filtrage: {df_clean['state'].unique()}")
 # On garde seulement 'successful' et 'failed' pour un problème de classification binaire
-etats_pertinents = ['successful', 'failed']
+print(f"  Lignes avant filtrage: {df_clean.shape[0]}")
+etats_pertinents = ['successful', 'failed','canceled']
 df_clean = df_clean[df_clean['state'].isin(etats_pertinents)]
 print(f"  Lignes après filtrage: {df_clean.shape[0]}")
 print(f"  Distribution: {df_clean['state'].value_counts()}")
@@ -123,7 +115,7 @@ print(f"  Distribution: {df_clean['state'].value_counts()}")
 
 # Traiter les valeurs manquantes de 'sex' et 'age'
 print("\n Traitement des valeurs manquantes")
-# Option: imputation par le mode pour sex, médiane pour age
+
 df_clean['sex'].fillna(df_clean['sex'].mode()[0], inplace=True)
 
 
@@ -133,12 +125,13 @@ df_clean['start_date'] = pd.to_datetime(df_clean['start_date'])
 df_clean['end_date'] = pd.to_datetime(df_clean['end_date'])
 
 print(f"\nTaille finale après nettoyage: {df_clean.shape}")
-print(f"Valeurs manquantes restantes:")
-print(df_clean.isnull().sum()[df_clean.isnull().sum() > 0])
+cols_with_na = df_clean.isnull().sum()[df_clean.isnull().sum() > 0].index
 
-# ============================================================================
-# 2.6 VISUALISATIONS
-# ============================================================================
+print("Colonnes contenant des valeurs nulles :", list(cols_with_na))
+
+# Suppression des lignes avec des valeurs nulles dans ces colonnes
+df_clean = df_clean.dropna(subset=cols_with_na)
+
 
 print("GRAPHE")
 
@@ -160,7 +153,7 @@ print("Figure sauvegardée: fig1_target_distribution.png")
 plt.close()
 
 # Distributions des variables numériques
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+fig, axes = plt.subplots(2,2, figsize=(15, 10))
 axes = axes.ravel()
 
 # Goal (log scale)
@@ -188,46 +181,45 @@ axes[3].set_xlabel('Âge')
 axes[3].set_ylabel('Fréquence')
 
 
-axes[4].set_ylabel('Fréquence')
-
-
 plt.tight_layout()
 plt.savefig('fig2_numeric_distributions.png', dpi=100, bbox_inches='tight')
 print("Figure sauvegardée: fig2_numeric_distributions.png")
 plt.close()
 
-# Variables catégorielles
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-# Category
-top_categories = df_clean['category'].value_counts().head(10)
-top_categories.plot(kind='barh', ax=axes[0, 0])
-axes[0, 0].set_title('Top 10 catégories')
-axes[0, 0].set_xlabel('Nombre de projets')
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-# Country
-top_countries = df_clean['country'].value_counts().head(10)
-top_countries.plot(kind='barh', ax=axes[0, 1])
-axes[0, 1].set_title('Top 10 pays')
-axes[0, 1].set_xlabel('Nombre de projets')
+df_clean.boxplot(column='goal', by='state', ax=axes[0])
+axes[0].set_yscale('log')
+axes[0].set_title('Goal par état du projet')
+axes[0].set_xlabel('State')
+axes[0].set_ylabel('Goal (log scale)')
 
-# Currency
-top_currencies = df_clean['currency'].value_counts().head(10)
-top_currencies.plot(kind='barh', ax=axes[1, 0])
-axes[1, 0].set_title('Top 10 devises')
-axes[1, 0].set_xlabel('Nombre de projets')
+df_clean.boxplot(column='pledged', by='state', ax=axes[1])
+axes[1].set_yscale('log')
+axes[1].set_title('Pledged par état du projet')
+axes[1].set_xlabel('State')
+axes[1].set_ylabel('Pledged (log scale)')
 
-# Sex
-df_clean['sex'].value_counts().plot(kind='bar', ax=axes[1, 1])
-axes[1, 1].set_title('Distribution par sexe')
-axes[1, 1].set_xlabel('Sexe')
-axes[1, 1].set_ylabel('Nombre de projets')
-axes[1, 1].tick_params(axis='x', rotation=0)
-
+plt.suptitle('') 
 plt.tight_layout()
-plt.savefig('fig3_categorical_distributions.png', dpi=100, bbox_inches='tight')
-print("Figure sauvegardée: fig3_categorical_distributions.png")
+plt.savefig('fig_goal_pledged_by_state.png', dpi=100, bbox_inches='tight')
+print("Figure sauvegardée : fig_goal_pledged_by_state.png")
 plt.close()
+categorical_cols = ['category', 'subcategory', 'country', 'currency', 'sex']
+
+for col in categorical_cols:
+    counts = df_clean[col].value_counts().head(20)  
+    plt.figure(figsize=(10, 4))
+    counts.plot(kind='bar')
+    plt.title(f"Distribution de {col}")
+    plt.xlabel(col)
+    plt.ylabel("Fréquence")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(f'fig_dist_{col}.png', dpi=100, bbox_inches='tight')
+    print(f"Figure sauvegardée : fig_dist_{col}.png")
+    plt.close()
 
 # Relations avec la variable cible
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -267,50 +259,50 @@ plt.tight_layout()
 plt.savefig('fig4_target_relationships.png', dpi=100, bbox_inches='tight')
 print("Figure sauvegardée: fig4_target_relationships.png")
 plt.close()
+numeric_cols = ['age', 'goal', 'pledged', 'backers']
 
-# Matrice de corrélation
-print("\n Calcul de la matrice de corrélation")
+# Calcul de la matrice de corrélation
+corr_matrix_numeric = df_clean[numeric_cols].corr(method='kendall')
 
-# Encoder state pour la corrélation
-df_corr = df_clean.copy()
-df_corr['duration_days'] = (df_corr['end_date'] - df_corr['start_date']).dt.days
-
-df_corr['start_year'] = df_corr['start_date'].dt.year
-
-df_corr['start_month'] = df_corr['start_date'].dt.month
-df_corr['state_encoded'] = (df_corr['state'] == 'successful').astype(int)
-numeric_cols = ['goal', 'pledged', 'backers', 'age', 'duration_days', 
-                'start_year', 'start_month', 'state_encoded']
-corr_matrix = df_corr[numeric_cols].corr()
-
-plt.figure(figsize=(10, 8))
-
-# Affichage de la matrice
-plt.imshow(corr_matrix, cmap='coolwarm', interpolation='nearest')
-
-# Bar de couleur
+plt.figure(figsize=(8, 6))
+plt.imshow(corr_matrix_numeric, cmap='coolwarm', interpolation='nearest')
 plt.colorbar()
 
-# Labels des axes
-plt.xticks(range(len(corr_matrix.columns)), corr_matrix.columns, rotation=90)
-plt.yticks(range(len(corr_matrix.columns)), corr_matrix.columns)
+# Labels sur les axes
+plt.xticks(range(len(corr_matrix_numeric.columns)), corr_matrix_numeric.columns, rotation=45)
+plt.yticks(range(len(corr_matrix_numeric.columns)), corr_matrix_numeric.columns)
 
 # Valeurs dans les cellules
-for i in range(len(corr_matrix.columns)):
-    for j in range(len(corr_matrix.columns)):
-        value = corr_matrix.iloc[i, j]
+for i in range(len(corr_matrix_numeric.columns)):
+    for j in range(len(corr_matrix_numeric.columns)):
+        value = corr_matrix_numeric.iloc[i, j]
         plt.text(j, i, f"{value:.2f}", ha='center', va='center', color='black')
 
-plt.title("Matrice de corrélation")
+plt.title("Matrice de corrélation (variables numériques)", fontsize=14)
 plt.tight_layout()
-plt.savefig('fig5_correlation_matrix.png', dpi=100, bbox_inches='tight')
-print("Figure sauvegardée: fig5_correlation_matrix.png")
+plt.savefig("fig_correlation_numeric.png", dpi=110, bbox_inches='tight')
+print("Figure sauvegardée : fig_correlation_numeric.png")
 plt.close()
+plt.figure(figsize=(8,6))
 
+df_clean['duration_days'] = (df_clean['end_date'] - df_clean['start_date']).dt.days
+df_clean['duration_days'] = df_clean['duration_days'].clip(lower=1)  # éviter zéro ou négatif
+
+df_clean.boxplot(column='duration_days', by='state')
+plt.title("Durée des projets par état")
+plt.suptitle('')
+plt.xlabel('State')
+plt.ylabel('Durée (jours)')
+plt.yscale('log')  # optionnel si tu veux compresser les valeurs très longues
+plt.tight_layout()
+plt.savefig('fig_duration_by_state.png', dpi=100, bbox_inches='tight')
+plt.close()
+print("Figure sauvegardée : fig_duration_by_state.png")
 
 """
 # Sauvegarder les données nettoyées
 df_clean.to_csv('ks-projects-clean.csv', index=False)
+
 print(f"\n Données nettoyées sauvegardées: ks-projects-clean.csv ({df_clean.shape})")"""
 
 print("IDENTIFICATION DES OUTILS DE CLASSIFICATION")
