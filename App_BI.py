@@ -431,7 +431,20 @@ print(f"\nDistribution de la variable cible:")
 print(df_clean['state'].value_counts())
 print(df_clean['state'].value_counts(normalize=True))
 
+# ============================================================
+# 5. PRETRAITEMENT
+# normalisation
+# ============================================================
+
+
 df_clean_scaled = normaliser(df_clean)
+
+
+# ============================================================
+# 6. DÉCOUPAGE
+# Séparation apprentissage / validation / test
+# ============================================================
+
 
 X_train, X_val, X_test, y_train, y_val, y_test = make_splits(
     df_clean_scaled,
