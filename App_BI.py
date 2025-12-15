@@ -1,9 +1,9 @@
-
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import seaborn as sns
+from scipy.stats import chi2_contingency
 #graph de distribution pour chaque vairable et etudier chaque pair de variable avec graphique de correlation
 
 
@@ -27,6 +27,10 @@ print(" ANALYSE DÉTAILLÉE PAR ATTRIBUT")
 
 print("\n Variable CIBLE: state")
 print(df['state'].value_counts())
+
+
+print("\n Attribut: currency")
+print(df['currency'].value_counts())
 
 
 print("\n Attribut: category" )
@@ -89,9 +93,44 @@ if (df['goal'] == 0).sum() > 0:
     print(f"{(df['goal'] == 0).sum()} projets avec goal = 0 (incohérent)")
 
 if df['start_date'].dtype == 'object':
-    print("Dates au format texte,on doit convertir en datetime")
+    print("Dates au format texte, on doit convertir en datetime")
 
- 
+if(df['goal'] < 0).sum() > 0:
+    print(f"{(df['goal'] < 0).sum()} projets avec goal < 0 (incohérent)")
+
+if(df['pledged'] < 0).sum() > 0:
+    print(f"{(df['pledged'] < 0).sum()} projets avec pledged < 0 (incohérent)")
+
+if(df['backers'] < 0).sum() > 0:
+    print(f"{(df['backers'] < 0).sum()} projets avec backers < 0 (incohérent)")
+
+if ((df['pledged'] == 0) & (df['backers'] > 0)).sum() > 0:
+    print(f"{(df['pledged']==0 and df['backers']>0).sum()} projets avec backers > 0 et pledged = 0 (incohérent)")
+
+if((df['pledged'] !=0) & (df['backers'] == 0)).sum() > 0:
+    print(f"{((df['pledged'] != 0) & (df['backers'] == 0)).sum()} projet avec backers = 0 et pledged != 0 (incohérent)")
+
+print("\nValeurs abérrantes des dates")
+
+
+if(df['start_date'] < '2009-04-28').sum() > 0:
+    print(f"{(df['start_date'] < '2009-04-28').sum()} projets avec start_date < 2009-04-28 (incohérent)")
+
+print("\n----------------------")
+print("STATISTIQUES DESCRIPTIVES")
+state_map = {
+    "successful": 1,
+    "failed": 0,
+    "canceled": 0,
+    "suspended": 0,
+    "live": None 
+}
+
+df['state_num'] = df['state'].map(state_map)
+
+print(df.groupby('subcategory')['state_num'].mean())
+print(df.groupby('category')['state_num'].mean())
+
 print("NETTOYAGE DES DONNÉES")
 
 df_clean = df.copy()
@@ -108,33 +147,79 @@ print(f"  États avant filtrage: {df_clean['state'].unique()}")
 print(f"  Lignes avant filtrage: {df_clean.shape[0]}")
 etats_pertinents = ['successful', 'failed','canceled']
 df_clean = df_clean[df_clean['state'].isin(etats_pertinents)]
-print(f"  Lignes après filtrage: {df_clean.shape[0]}")
 print(f"  Distribution: {df_clean['state'].value_counts()}")
 
+# Filtrer les projets commencant avant 2009-04-28
+print('\n on filtre les date qui commencent avant 2009-04-28')
+df_clean = df_clean[df_clean['start_date'] > '2009-04-28']
+
+#On filtre les states qui sont undifined
+df_clean = df_clean[df_clean['state']!= 'undifined']
 
 
-# Traiter les valeurs manquantes de 'sex' et 'age'
+#On traite les valeurs manquantes de 'sex' et 'age'
 print("\n Traitement des valeurs manquantes")
 
 df_clean['sex'].fillna(df_clean['sex'].mode()[0], inplace=True)
 
 
-# Conversion des dates
+#On convertie des dates
 print("\n Conversion des dates")
 df_clean['start_date'] = pd.to_datetime(df_clean['start_date'])
 df_clean['end_date'] = pd.to_datetime(df_clean['end_date'])
 
-print(f"\nTaille finale après nettoyage: {df_clean.shape}")
+#Suppression des lignes avec des valeurs nulles dans ces colonnes
 cols_with_na = df_clean.isnull().sum()[df_clean.isnull().sum() > 0].index
 
-print("Colonnes contenant des valeurs nulles :", list(cols_with_na))
-
-# Suppression des lignes avec des valeurs nulles dans ces colonnes
+print("Colonnes contenant des valeurs nulles:", list(cols_with_na))
 df_clean = df_clean.dropna(subset=cols_with_na)
+
+#Suppression des lignes avec backers = 0 mais pledged > 0
+df_clean = df_clean[~((df_clean['backers'] == 0) & (df_clean['pledged'] > 0))]
+
+
+#conversion des devise en usd
+print("\n Conversion des devises")
+exchange_rates = {
+    'USD': 1.0,
+    'GBP': 1.25,  
+    'CAD': 0.75,   
+    'EUR': 1.08,   
+    'AUD': 0.67,  
+    'SEK': 0.09,   
+    'NZD': 0.60,   
+    'DKK': 0.14,   
+    'NOK': 0.09,  
+    'CHF': 1.10   
+}
+
+# Conversion des colonnes goal et pledged
+df_clean['goal'] = df_clean['goal'] * df_clean['currency'].map(exchange_rates)
+df['pledged'] = df_clean['pledged'] * df_clean['currency'].map(exchange_rates)
+
+print(f"\nTaille finale après nettoyage: {df_clean.shape}")
+print(f"  Lignes après filtrage: {df_clean.shape[0]}")
+
+print(df_clean['backers'].describe())
+
+print(df_clean.groupby('state')['backers'].sum())
+plt.figure(figsize=(14, 6))
+
+success_rate_country = df_clean.groupby('country')['state'].apply(
+    lambda x: (x == 'successful').mean()
+).sort_values(ascending=False)
+
+success_rate_country.plot(kind='bar', color='lightgreen')
+
+plt.title("Taux de succès par pays")
+plt.xlabel("Pays")
+plt.ylabel("Taux de succès")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
 
 
 print("GRAPHE")
-
 
 # Variable cible
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -169,8 +254,8 @@ axes[1].set_xlabel('log10(pledged)')
 axes[1].set_ylabel('Fréquence')
 
 # Backers
-axes[2].hist(df_clean['backers'], bins=50, edgecolor='black')
-axes[2].set_title('Distribution de backers')
+axes[2].hist(df_clean['backers'], bins=50, range=(0, 500), edgecolor='black')
+axes[2].set_title('Distribution de backers (0-500)')
 axes[2].set_xlabel('Nombre de backers')
 axes[2].set_ylabel('Fréquence')
 
@@ -253,6 +338,7 @@ df_clean.boxplot(column='backers', by='state', ax=axes[1, 1])
 axes[1, 1].set_title('Backers selon le state')
 axes[1, 1].set_xlabel('État')
 axes[1, 1].set_ylabel('Nombre de backers')
+axes[1, 1].set_ylim(0, 500) 
 plt.suptitle('')
 
 plt.tight_layout()
@@ -297,6 +383,27 @@ plt.yscale('log')  # optionnel si tu veux compresser les valeurs très longues
 plt.tight_layout()
 plt.savefig('fig_duration_by_state.png', dpi=100, bbox_inches='tight')
 plt.close()
+
+plt.figure(figsize=(10, 6))
+
+# Scatter
+plt.scatter(df_clean['age'], df_clean['goal'], alpha=0.3, s=15)
+
+# Ligne de tendance linéaire
+z = np.polyfit(df_clean['age'], np.log10(df_clean['goal'] + 1), 1)
+p = np.poly1d(z)
+plt.plot(df_clean['age'], 10**p(df_clean['age']), color='red')
+
+plt.yscale('log')
+plt.xlabel("Âge du porteur du projet")
+plt.ylabel("Goal (échelle log)")
+plt.title("Relation entre l'âge et le goal des projets")
+plt.tight_layout()
+plt.savefig("fig_age_vs_goal.png", dpi=120)
+plt.close()
+
+print("Figure sauvegardée : fig_age_vs_goal.png")
+print("Figure sauvegardée : fig_age_vs_goal.png")
 print("Figure sauvegardée : fig_duration_by_state.png")
 
 """
