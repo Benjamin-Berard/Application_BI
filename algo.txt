@@ -1,0 +1,43 @@
+1. k-NN (k-Nearest Neighbors)
+
+Tester plusieurs valeurs de k (ex: 3, 5, 7, 11, 15)
+Nécessite normalisation des variables numériques
+Encodage one-hot pour les catégorielles
+
+2. Arbres de décision
+
+Tester différentes profondeurs max
+Critères: Gini ou entropie
+Peut gérer directement les catégorielles (selon implémentation)
+
+3. Forêts aléatoires (Random Forest)
+
+Tester nombre d'arbres (ex: 50, 100, 200)
+Profondeur max, min_samples_split
+Robuste, bon point de départ
+
+
+
+
+
+
+
+
+
+
+5. Régression logistique
+
+Simple mais efficace pour baseline
+Nécessite normalisation + encodage
+
+6. Naive Bayes
+
+GaussianNB pour variables continues
+MultinomialNB pour comptages
+Rapide, bon pour baseline
+
+7. Réseaux de neurones (MLP)
+
+Tester architectures (nombre couches, neurones)
+Fonctions d'activation
+Nécessite normalisation
