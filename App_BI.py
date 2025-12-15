@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import seaborn as sns
 from scipy.stats import chi2_contingency
+
+from decoupage import make_splits
+from normalisation import normaliser
+
 #graph de distribution pour chaque vairable et etudier chaque pair de variable avec graphique de correlation
 
 
@@ -426,4 +430,15 @@ for col in df_clean.columns:
 print(f"\nDistribution de la variable cible:")
 print(df_clean['state'].value_counts())
 print(df_clean['state'].value_counts(normalize=True))
+
+df_clean_scaled = normaliser(df_clean)
+
+X_train, X_val, X_test, y_train, y_val, y_test = make_splits(
+    df_clean_scaled,
+    target_col='state_num',   # ou 'success' selon ton nom
+    seed=42,
+    test_size=0.2,
+    val_size=0.2
+)
+
 
