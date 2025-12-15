@@ -53,7 +53,7 @@ def make_splits(df: pd.DataFrame, target_col: str = 'success', seed: int = 42, t
         'val_idx': X_val.index.astype(int).tolist(),
         'test_idx': X_test.index.astype(int).tolist()
     }
-    with open('splits.json', 'w', encoding='utf-8') as f:
+    with open('artifacts/splits.json', 'w', encoding='utf-8') as f:
         json.dump(splits, f, indent=2)
 
     print(f"[make_splits] Splits créés (train={len(X_train)}, val={len(X_val)}, test={len(X_test)})")

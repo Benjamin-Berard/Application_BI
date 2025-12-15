@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import seaborn as sns
 from scipy.stats import chi2_contingency
-
 from decoupage import make_splits
+from naivesbayes import train_naive_bayes
 from normalisation import normaliser
+from regression import train_logistic_regression
 
 #graph de distribution pour chaque vairable et etudier chaque pair de variable avec graphique de correlation
 
@@ -181,6 +182,9 @@ df_clean = df_clean.dropna(subset=cols_with_na)
 #Suppression des lignes avec backers = 0 mais pledged > 0
 df_clean = df_clean[~((df_clean['backers'] == 0) & (df_clean['pledged'] > 0))]
 
+# Tu transformes tous les montants dans une seule devise (USD)
+# Donc le modèle n’a plus besoin de savoir dans quelle devise initiale était le projet
+# La colonne currency n’apporte plus d’information utile pour prédire le succès, car tout est déjà uniformisé
 
 #conversion des devise en usd
 print("\n Conversion des devises")
@@ -452,6 +456,54 @@ X_train, X_val, X_test, y_train, y_val, y_test = make_splits(
     seed=42,
     test_size=0.2,
     val_size=0.2
+)
+
+
+# ============================================================
+# 7. SÉLECTION
+# Choix des algorithmes de classification
+#
+# k-NN
+# Arbres de décision
+# Forêts Aléatoires
+# Régression Logistique
+# Naives Bayes
+# Réseaux de Neurones
+#
+# ============================================================
+
+
+# Définir colonnes numériques et catégorielles qui iront dans le pipeline de chaque Classification
+
+# La variable cible "state" n'est pas incluse
+numeric_cols = ['age', 'goal', 'pledged', 'backers', 'duration_days']
+categorical_cols = ['category', 'subcategory', 'country', 'sex']
+
+
+# ============================================================
+# CLASSIFICATION
+# Régression Logistique
+# ============================================================
+
+model_logreg, metrics_val = train_logistic_regression(
+    X_train, y_train,
+    X_val, y_val,
+    numeric_cols=numeric_cols,
+    categorical_cols=categorical_cols,
+    save_path='artifacts/best_logreg.pkl'
+)
+
+# ============================================================
+# CLASSIFICATION
+# Naives Bayes
+# ============================================================
+
+model_nb, metrics_nb = train_naive_bayes(
+    X_train, y_train,
+    X_val, y_val,
+    numeric_cols=numeric_cols,
+    categorical_cols=categorical_cols,
+    save_path='artifacts/best_nb.pkl'
 )
 
 
