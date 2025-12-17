@@ -10,122 +10,114 @@ from sklearn.metrics import (
 import warnings
 warnings.filterwarnings('ignore')
 
+
 # ============================================================================
-# CHARGEMENT ET PRÉPARATION DES DONNÉES
+# CHARGEMENT DES SPLITS BRUTS
 # ============================================================================
 
 print("=" * 80)
-print("CHARGEMENT ET PRÉPARATION DES DONNÉES")
+print("CHARGEMENT DES SPLITS BRUTS")
 print("=" * 80)
 
-df_clean = pd.read_csv("data/ks-projects-clean.csv", encoding="ISO-8859-1")
+df_train = pd.read_csv("data/raw_splits/train.csv")
+df_val   = pd.read_csv("data/raw_splits/val.csv")
+df_test  = pd.read_csv("data/raw_splits/test.csv")
 
-# Conversion des dates
-df_clean["start_date"] = pd.to_datetime(df_clean["start_date"], errors="coerce")
-df_clean["end_date"] = pd.to_datetime(df_clean["end_date"], errors="coerce")
-
-# Suppression des lignes avec dates invalides
-df_clean = df_clean.dropna(subset=["start_date", "end_date"])
-
-print(f"✓ Données chargées: {df_clean.shape}")
+print(f"✓ Train: {df_train.shape}")
+print(f"✓ Val  : {df_val.shape}")
+print(f"✓ Test : {df_test.shape}")
 
 # ============================================================================
-# FEATURE ENGINEERING
+# FEATURE ENGINEERING (APRÈS SPLIT)
 # ============================================================================
 
 print("\n" + "=" * 80)
 print("FEATURE ENGINEERING")
 print("=" * 80)
 
-# Durée de la campagne
-df_clean["duration_days"] = (df_clean["end_date"] - df_clean["start_date"]).dt.days
-df_clean["duration_days"] = df_clean["duration_days"].clip(lower=1)
+for df_ in [df_train, df_val, df_test]:
+    df_["start_date"] = pd.to_datetime(df_["start_date"], errors="coerce")
+    df_["end_date"]   = pd.to_datetime(df_["end_date"], errors="coerce")
 
-# Variable cible
-df_clean["target"] = (df_clean["state"] == "successful").astype(int)
+    df_["duration_days"] = (
+        df_["end_date"] - df_["start_date"]
+    ).dt.days.clip(lower=1)
 
-# Regroupement des catégories rares
-min_count = 20
-df_clean["subcategory"] = df_clean["subcategory"].where(
-    df_clean["subcategory"].map(df_clean["subcategory"].value_counts()) >= min_count,
-    "Other"
-)
-
-# Clé de stratification multi-critères
-df_clean["stratify_key"] = (
-    df_clean["target"].astype(str) + "_" + df_clean["subcategory"]
-)
-
-print("✓ Feature engineering terminé")
-
-# PRÉPARATION DES FEATURES
+# ============================================================================
+# DÉFINITION DES FEATURES & TARGET
 # ============================================================================
 
-features_num = ["goal", "age", "duration_days"]
-features_cat = ["category", "subcategory", "country", "sex"]
+features_num = ["goal", "duration_days"]
+features_cat = ["subcategory"]
 
-X = df_clean[features_num + features_cat]
-y = df_clean["target"]
-strat = df_clean["stratify_key"]
+X_train = df_train[features_num + features_cat]
+y_train = df_train["target"]
 
-# One-hot encoding
-X_encoded = pd.get_dummies(X, columns=features_cat, drop_first=True)
+X_val = df_val[features_num + features_cat]
+y_val = df_val["target"]
 
-print(f"✓ Shape X après encodage: {X_encoded.shape}")
+X_test = df_test[features_num + features_cat]
+y_test = df_test["target"]
 
-# DÉCOUPAGE STRATIFIÉ 60 / 20 / 20
+# ============================================================================
+# ONE-HOT ENCODING (SANS DATA LEAKAGE)
 # ============================================================================
 
-print("\n" + "=" * 80)
-print("DÉCOUPAGE STRATIFIÉ DES DONNÉES")
-print("=" * 80)
-
-X_temp, X_test, y_temp, y_test, strat_temp, strat_test = train_test_split(
-    X_encoded,
-    y,
-    strat,
-    test_size=0.20,
-    random_state=42,
-    stratify=strat
+X_train_enc = pd.get_dummies(
+    X_train,
+    columns=features_cat,
+    drop_first=True
 )
 
-X_train, X_val, y_train, y_val = train_test_split(
-    X_temp,
-    y_temp,
-    test_size=0.25, 
-    random_state=42,
-    stratify=strat_temp
+X_val_enc = pd.get_dummies(
+    X_val,
+    columns=features_cat,
+    drop_first=True
 )
 
-print(f"✓ Train: {len(X_train)}")
-print(f"✓ Validation: {len(X_val)}")
-print(f"✓ Test: {len(X_test)}")
+X_test_enc = pd.get_dummies(
+    X_test,
+    columns=features_cat,
+    drop_first=True
+)
 
+# Alignement strict des colonnes
+X_val_enc = X_val_enc.reindex(
+    columns=X_train_enc.columns,
+    fill_value=0
+)
+
+X_test_enc = X_test_enc.reindex(
+    columns=X_train_enc.columns,
+    fill_value=0
+)
+
+print(f"✓ Shape X_train_enc: {X_train_enc.shape}")
+print(f"✓ Shape X_val_enc  : {X_val_enc.shape}")
+print(f"✓ Shape X_test_enc : {X_test_enc.shape}")
+
+# ============================================================================
 # NORMALISATION (k-NN)
 # ============================================================================
 
 scaler = StandardScaler()
 
-X_train_scaled = scaler.fit_transform(X_train)
-X_val_scaled = scaler.transform(X_val)
-X_test_scaled = scaler.transform(X_test)
+X_train_scaled = scaler.fit_transform(X_train_enc)
+X_val_scaled   = scaler.transform(X_val_enc)
+X_test_scaled  = scaler.transform(X_test_enc)
 
-print("✓ Standardisation appliquée")
-
+# ============================================================================
 # ÉVALUATION
 # ============================================================================
 
 def evaluate_model(name, y_true, y_pred, y_proba=None):
-    print(f"\n{'=' * 80}")
-    print(f"RÉSULTATS: {name}")
-    print(f"{'=' * 80}")
+    print(f"\nRÉSULTATS: {name}")
+    print("=" * 80)
 
     acc = accuracy_score(y_true, y_pred)
     prec = precision_score(y_true, y_pred, zero_division=0)
     rec = recall_score(y_true, y_pred)
     f1 = f1_score(y_true, y_pred)
-
-    print(f"Accuracy : {acc:.4f}")
     print(f"Precision: {prec:.4f}")
     print(f"Recall   : {rec:.4f}")
     print(f"F1-score : {f1:.4f}")
@@ -140,17 +132,20 @@ def evaluate_model(name, y_true, y_pred, y_proba=None):
 
     return f1
 
+# ============================================================================
 # k-NEAREST NEIGHBORS
 # ============================================================================
-
 
 def check_success_rate(name, y):
     print(f"{name:<12} → success rate = {y.mean():.4f} ({len(y)} échantillons)")
 
+print("\n" + "=" * 80)
+print("DISTRIBUTION DES CLASSES")
+print("=" * 80)
+
 check_success_rate("TRAIN", y_train)
 check_success_rate("VALIDATION", y_val)
 check_success_rate("TEST", y_test)
-
 
 print("\n" + "=" * 80)
 print("k-NEAREST NEIGHBORS")
@@ -175,11 +170,10 @@ for k in k_values:
         best_f1 = f1
         best_k = k
 
-print(f"\n✓ Meilleur k = {best_k} (F1 = {best_f1:.4f})")
+print(f"\n Meilleur k = {best_k} (F1 = {best_f1:.4f})")
 
-# MODÈLE FINAL
-# ============================================================================
 
+'''
 print("\nEntraînement du modèle final...")
 
 knn_final = KNeighborsClassifier(n_neighbors=best_k, n_jobs=-1)
@@ -192,7 +186,7 @@ evaluate_model("k-NN FINAL (TEST)", y_test, y_test_pred, y_test_proba)
 
 knn_best = KNeighborsClassifier(n_neighbors=best_k, n_jobs=-1)
 knn_best.fit(X_train_scaled, y_train)
-'''
+''''''
 # ============================================================================
 # 2. ARBRES DE DÉCISION
 # ============================================================================
